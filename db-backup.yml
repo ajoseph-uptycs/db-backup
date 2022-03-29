@@ -1,0 +1,5 @@
+---
+- hosts: all
+  remote_user: ubuntu
+  roles:
+       - all-db-backup

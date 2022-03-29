@@ -1,0 +1,6 @@
+- name: reload postgresql
+  become: yes
+  systemd:
+    name: "{{ pg_svc }}"
+    state: reloaded
+    enabled: yes

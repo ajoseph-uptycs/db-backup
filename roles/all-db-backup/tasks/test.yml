@@ -1,0 +1,41 @@
+---
+
+- name: TEST
+  gather_facts: false
+  become: yes
+  hosts: all
+  vars:
+    - backup_path: /warehouse/db-backup/
+
+
+    - configdb_wal_archive: /warehouse/db-backup/configdb/walfiles
+    - metastoredb_wal_archive: /warehouse/db-backup/metastoredb/walfiles
+    - statedb_wal_archive: /warehouse/db-backup/statedb/walfiles
+
+    - conf_path: /opt/uptycs/etc/postgres
+
+    - replication_user: postgres
+    - replication_user_pw: pguptycs
+    - uptycs_service_user: monkey
+    - s3_db_backup_url: s3://apj-db-backup
+  tasks:
+
+     - name: Add PG Backup settings to postgresql.conf
+       become: yes
+       lineinfile:
+         dest: "/opt/uptycs/etc/postgres/configdb/postgresql.conf"
+         insertafter: EOF
+         line: "{{ item }}"
+         state: present
+       with_items:
+         - #=== ENABLE WAL ARCHIVING ===
+         - archive_mode = on
+         - wal_level = logical
+         - "archive_command = 'test ! -f {{ backup_path }}configdb/walfiles_archive/%f && cp %p {{ backup_path }}configdb/walfiles_archive/%f'"
+
+
+    # - name: test multiline
+    #   become: yes
+    #   shell: >
+    #     echo "{{ db_backup_path }}"
+    #     > /tmp/test-multiline.txt;

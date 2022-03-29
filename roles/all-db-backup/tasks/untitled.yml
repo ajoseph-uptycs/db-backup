@@ -1,0 +1,161 @@
+---
+
+- name: TEST
+  gather_facts: false
+  become: yes
+  hosts: all
+  vars: 
+    - db_backup_path: /warehouse/db-backup
+    - basebackup_path: /warehouse/db-backup/configdb/basebackup
+
+    - configdb_wal_archive: /warehouse/db-backup/configdb/walfiles
+    - metastoredb_wal_archive: /warehouse/db-backup/metastoredb/walfiles
+    - statedb_wal_archive: /warehouse/db-backup/statedb/walfiles
+
+    - conf_path: /opt/uptycs/etc/postgres
+    - replication_user: postgres
+    - replication_user_pw: pguptycs
+    - uptycs_service_user: monkey
+    - s3_db_backup_url: s3://apj-db-backup
+  tasks:
+
+      - name: stop dockerized PSQL containers
+        become: yes
+        command: docker-compose down
+        args:
+          chdir: "/opt/uptycs/etc/postgres/{{ item }}"
+        with_items:
+          - configdb
+          - metastoredb
+          - statedb
+
+      - name: Create BaseBackup & wal_files_archive directories
+        become: yes
+        file:
+          path: "{{ item }}"
+          state: directory
+          owner: "{{ replication_user }}"
+          group: "{{ replication_user }}"
+          recurse: yes
+        with_items:
+          - '{{ basebackup_path }}'
+          - '{{ wal_files_archive }}'
+      
+      
+      - name: Backup postgresql.conf 
+        copy:
+          src: "/opt/uptycs/etc/postgres/{{ item }}/postgresql.conf"
+          dest: "/opt/uptycs/etc/postgres/{{ item }}/postgresql.conf-original"
+          remote_src: yes
+        with_items:
+          - configdb
+          - metastoredb
+          - statedb
+      
+      - name: Add PG Backup settings to ConfigDB postgresql.conf
+        become: yes
+        lineinfile:
+          dest: "/opt/uptycs/etc/postgres/configdb/postgresql.conf"
+          insertafter: EOF
+          line: "{{ item }}"
+          state: present
+        with_items:
+          - #=== ENABLE WAL ARCHIVING ===
+          - archive_mode = on
+          - wal_level = logical
+          - archive_command = 'test ! -f {{ configdb_wal_archive }}%f && cp %p {{ configdb_wal_archive }}%f'
+
+      - name: Add PG Backup settings to MetastoreDB postgresql.conf
+        become: yes
+        lineinfile:
+          dest: "/opt/uptycs/etc/postgres/metastoredb/postgresql.conf"
+          insertafter: EOF
+          line: "{{ item }}"
+          state: present
+        with_items:
+          - #=== ENABLE WAL ARCHIVING ===
+          - archive_mode = on
+          - wal_level = logical
+          - archive_command = 'test ! -f {{ metastoredb_wal_archive }}%f && cp %p {{ metastoredb_wal_archive }}%f'
+
+      - name: Add PG Backup settings to StateDB postgresql.conf
+        become: yes
+        lineinfile:
+          dest: "/opt/uptycs/etc/postgres/configdb/postgresql.conf"
+          insertafter: EOF
+          line: "{{ item }}"
+          state: present
+        with_items:
+          - #=== ENABLE WAL ARCHIVING ===
+          - archive_mode = on
+          - wal_level = logical
+          - archive_command = 'test ! -f {{ statedb_wal_archive }}%f && cp %p {{ statedb_wal_archive }}%f'
+
+      
+      - name: Add replication user to pg_hba.conf
+        become: yes
+        lineinfile:
+          dest: "{{ conf_path }}/configdb/pg_hba.conf"
+          insertafter: EOF
+          line: "{{ item }}"
+          state: present
+        with_items:
+          - 'host  replication {{ replication_user }}  127.0.0.1/32    md5'
+
+      
+      - name: start dockerized PSQL containers
+        become: yes
+        command: docker-compose up -d
+        args:
+          chdir: "/opt/uptycs/etc/postgres/{{ item }}"
+        with_items:
+          - configdb
+          - metastoredb
+          - statedb
+      
+      
+      - name: Check status of PostgreSQL
+        postgresql_ping:
+          db: configdb
+          login_host: localhost
+          login_user: '{{ replication_user }}'
+          login_password: '{{ replication_user_pw }}'
+      
+      
+      - name: Force PostgreSQL to switch to a new WAL file
+        postgresql_query:
+          login_host: localhost
+          port: 5432
+          login_user: '{{ replication_user }}'
+          login_password: '{{ replication_user_pw }}'
+          query: SELECT pg_switch_wal();
+      
+      # - name: Check wal_files_archive to confirm new WAL is generated
+      
+      - name: Take Initial PG_BASEBACKUP of ConfigDB
+        become: yes
+        shell: export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5432 -U postgres -D /warehouse/db-backup/configdb/basebackup --tablespace-mapping=/data/pgdata/configdb=/warehouse/db-backup/configdb/basebackup/configdb-pg_tblspc-24576 --waldir=/warehouse/db-backup/configdb/main_pg_wal -P -v > /tmp/db-basebackup.log 2>&1
+
+        
+      - name: Sync Initial PG_BASEBACKUP & WAL archives to S3 
+        become: yes
+        shell: aws s3 sync "{{ db_backup_path }}" "{{ s3_db_backup_url }}"
+      
+      - name: Add crontab for s3 sync
+        cron:
+          name: "Sync DB-Backup to s3"
+          minute: "0"
+          hour: "12"
+          user: ubuntu
+          job: aws s3 sync "{{ db_backup_path }}" "{{ s3_db_backup_url }}"
+          cron_file: db-back-s3sync
+      
+      - name: Add crontab for periodic BaseBackup
+        cron:
+          name: "Create New BaseBackup"
+          minute: "0"
+          hour: "12"
+          user: ubuntu
+          job: aws s3 sync "{{ db_backup_path }}" "{{ s3_db_backup_url }}"
+          cron_file: db-back-s3sync
+      
