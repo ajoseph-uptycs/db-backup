@@ -10,7 +10,6 @@
     - metastoredb
     - statedb
 
-
 - name: Create BaseBackup & wal_files_archive directories
   become: yes
   file:
@@ -20,9 +19,7 @@
     group: "{{ replication_user }}"
     recurse: yes
   with_items:
-    - '{{ basebackup_path }}'
-    - '{{ wal_files_archive }}'
-
+    - '{{ backup_path }}'
 
 - name: Backup postgresql.conf 
   copy:
