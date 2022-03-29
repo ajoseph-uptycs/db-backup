@@ -1,5 +1,5 @@
 ---
-backup_path: /warehouse/db-backup/
+backup_path: /warehouse/db-backup
 conf_path: /opt/uptycs/etc/postgres
 replication_user: postgres
 replication_user_pw: pguptycs
