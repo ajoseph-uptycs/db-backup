@@ -22,6 +22,7 @@
     - '{{ backup_path }}'
 
 - name: Backup postgresql.conf 
+  become: yes
   copy:
     src: "/opt/uptycs/etc/postgres/{{ item }}/postgresql.conf"
     dest: "/opt/uptycs/etc/postgres/{{ item }}/postgresql.conf-original"
@@ -40,7 +41,7 @@
     line: "{{ item }}"
     state: present
   with_items:
-    - #=== ENABLE WAL ARCHIVING ===
+    - "#=== ENABLE WAL ARCHIVING ==="
     - archive_mode = on
     - wal_level = logical
     - "archive_command = 'test ! -f {{ backup_path }}configdb/walfiles_archive/%f && cp %p {{ backup_path }}configdb/walfiles_archive/%f'"
@@ -54,11 +55,10 @@
     line: "{{ item }}"
     state: present
   with_items:
-    - #=== ENABLE WAL ARCHIVING ===
+    - "#=== ENABLE WAL ARCHIVING ==="
     - archive_mode = on
     - wal_level = logical
     - "archive_command = 'test ! -f {{ backup_path }}metastoredb/walfiles_archive/%f && cp %p {{ backup_path }}metastoredb/walfiles_archive/%f'"
-
 
 - name: Add PG Backup settings to statedb/postgresql.conf
   become: yes
@@ -68,7 +68,7 @@
     line: "{{ item }}"
     state: present
   with_items:
-    - #=== ENABLE WAL ARCHIVING ===
+    - "#=== ENABLE WAL ARCHIVING ==="
     - archive_mode = on
     - wal_level = logical
     - "archive_command = 'test ! -f {{ backup_path }}statedb/walfiles_archive/%f && cp %p {{ backup_path }}statedb/walfiles_archive/%f'"

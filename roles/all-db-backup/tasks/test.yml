@@ -28,12 +28,24 @@
          line: "{{ item }}"
          state: present
        with_items:
+         - "#=== ENABLE WAL ARCHIVING ==="
+         - archive_mode = on
+         - wal_level = logical
+         - archive_command = 'test ! -f "{{ backup_path }}"metastoredb/walfiles_archive/%f && cp %p "{{ backup_path }}"metastoredb/walfiles_archive/%f'
+
+
+     - name: SECOND Add PG Backup settings to metastoredb/postgresql.conf
+       become: yes
+       lineinfile:
+         dest: "/opt/uptycs/etc/postgres/metastoredb/postgresql.conf"
+         insertafter: EOF
+         line: "{{ item }}"
+         state: present
+       with_items:
          - #=== ENABLE WAL ARCHIVING ===
          - archive_mode = on
          - wal_level = logical
-         - "archive_command = 'test ! -f {{ backup_path }}configdb/walfiles_archive/%f && cp %p {{ backup_path }}configdb/walfiles_archive/%f'"
-
-
+         - "archive_command = 'test ! -f {{ backup_path }}metastoredb/walfiles_archive/%f && cp %p {{ backup_path }}metastoredb/walfiles_archive/%f'"
     # - name: test multiline
     #   become: yes
     #   shell: >
