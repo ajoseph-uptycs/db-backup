@@ -4,6 +4,5 @@ conf_path: /opt/uptycs/etc/postgres
 replication_user: postgres
 replication_user_pw: pguptycs
 uptycs_service_user: monkey
-
 s3_db_backup_url: s3://apj-db-backup/db-backup
 basebackup-log: /tmp/basebackup.log

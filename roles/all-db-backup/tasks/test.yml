@@ -6,48 +6,24 @@
   hosts: all
   vars:
     - backup_path: /warehouse/db-backup/
-
-
     - configdb_wal_archive: /warehouse/db-backup/configdb/walfiles
     - metastoredb_wal_archive: /warehouse/db-backup/metastoredb/walfiles
     - statedb_wal_archive: /warehouse/db-backup/statedb/walfiles
-
     - conf_path: /opt/uptycs/etc/postgres
-
     - replication_user: postgres
     - replication_user_pw: pguptycs
     - uptycs_service_user: monkey
     - s3_db_backup_url: s3://apj-db-backup
+    - basebackup-log: /tmp/basebackup.log
+
   tasks:
-
-     - name: Add PG Backup settings to postgresql.conf
-       become: yes
-       lineinfile:
-         dest: "/opt/uptycs/etc/postgres/configdb/postgresql.conf"
-         insertafter: EOF
-         line: "{{ item }}"
-         state: present
-       with_items:
-         - "#=== ENABLE WAL ARCHIVING ==="
-         - archive_mode = on
-         - wal_level = logical
-         - archive_command = 'test ! -f "{{ backup_path }}"metastoredb/walfiles_archive/%f && cp %p "{{ backup_path }}"metastoredb/walfiles_archive/%f'
-
-
-     - name: SECOND Add PG Backup settings to metastoredb/postgresql.conf
-       become: yes
-       lineinfile:
-         dest: "/opt/uptycs/etc/postgres/metastoredb/postgresql.conf"
-         insertafter: EOF
-         line: "{{ item }}"
-         state: present
-       with_items:
-         - #=== ENABLE WAL ARCHIVING ===
-         - archive_mode = on
-         - wal_level = logical
-         - "archive_command = 'test ! -f {{ backup_path }}metastoredb/walfiles_archive/%f && cp %p {{ backup_path }}metastoredb/walfiles_archive/%f'"
-    # - name: test multiline
-    #   become: yes
-    #   shell: >
-    #     echo "{{ db_backup_path }}"
-    #     > /tmp/test-multiline.txt;
+      - name: Take Initial PG_BASEBACKUP of ConfigDB
+        become: yes
+        shell: >
+           printf "`date`" >> "{{ basebackup-log }}" &&
+           printf "\n########## STARTING PG_BASEBACKUP of ConfigDB ##########\n\n" >> "{{ basebackup-log }}"
+           export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5432 
+           -U postgres -D "{{ backup_path }}"/configdb/basebackup/
+           --tablespace-mapping=/data/pgdata/configdb="{{ backup_path }}"/configdb/pg_tblspc-24576
+           --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v >> "{{ basebackup-log }}" 2>&1
+      

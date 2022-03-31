@@ -20,9 +20,14 @@
     recurse: yes
   with_items:
     - "{{ backup_path }}"
-    - "{{ backup_path }}/configdb/walfiles_archive"
-    - "{{ backup_path }}/metastoredb/walfiles_archive"
-    - "{{ backup_path }}/statedb/walfiles_archive"
+    - /pg/configdb/backup/walfiles-archive
+    - /pg/metastoredb/backup/walfiles-archive
+    - /pg/statedb/backup/walfiles-archive
+    # - "{{ backup_path }}/configdb/walfiles_archive"
+    # - "{{ backup_path }}/metastoredb/walfiles_archive"
+    # - "{{ backup_path }}/statedb/walfiles_archive"
+
+
 
 - name: Backup postgresql.conf 
   become: yes
@@ -39,12 +44,20 @@
 # Create Symlinks to place DOCKER:/pg/backup/walfiles_archive = HOST://pg/<DB-NAME>/backup/walfiles-archive 
 # INSIDE common Backupdirectory on HOST (backup_path)
 
-- name:
+- name: Create Symlinks for walfiles-archive directories
   become: yes
-  shell: >
-      ln -s /pg/configdb/backup/walfiles-archive  "{{ backup_path }}"/configdb/walfiles_archive
-      ln -s /pg/metastoredb/backup/walfiles-archive  "{{ backup_path }}"/metastoredb/walfiles_archive
-      ln -s /pg/statedb/backup/walfiles-archive  "{{ backup_path }}"/statedb/walfiles_archive
+  file:
+    src: "{{ item.key }}"
+    dest: "{{ item.value }}"
+    state: link
+    owner: "{{ uptycs_service_user }}"
+    group: "{{ uptycs_service_user }}"
+  loop: "{{ symlinks | dict2items }}"
+  vars:
+    symlinks:
+      /pg/configdb/backup/walfiles-archive: "{{ backup_path }}/configdb/walfiles_archive"
+      /pg/metastoredb/backup/walfiles-archive: "{{ backup_path }}/metastoredb/walfiles_archive"
+      /pg/statedb/backup/walfiles-archive: "{{ backup_path }}/statedb/walfiles_archive"
 
 
 - name: Add PG Backup settings to configdb/postgresql.conf
@@ -168,35 +181,35 @@
 - name: Take Initial PG_BASEBACKUP of ConfigDB
   become: yes
   shell: >
-     printf "`date`" >> {{ basebackup-log }} &&
-     printf "\n########## STARTING PG_BASEBACKUP of ConfigDB ##########\n\n" >> {{ basebackup-log }}
+     printf "`date`" >> "{{ basebackup_log }}" &&
+     printf "\n########## STARTING PG_BASEBACKUP of ConfigDB ##########\n\n" >> "{{ basebackup_log }}" &&
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5432 
      -U postgres -D "{{ backup_path }}"/configdb/basebackup/
      --tablespace-mapping=/data/pgdata/configdb="{{ backup_path }}"/configdb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
+     --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v >> "{{ basebackup_log }}" 2>&1 
 
 
 - name: Take Initial PG_BASEBACKUP of MetastoreDB
   become: yes
   shell: >
-     printf "`date`" >> {{ basebackup-log }} &&
-     printf "\n########## STARTING PG_BASEBACKUP of MetastoreDB ##########\n\n" >> {{ basebackup-log }}
+     printf "`date`" >> "{{ basebackup_log }}" &&
+     printf "\n########## STARTING PG_BASEBACKUP of MetastoreDB ##########\n\n" >> "{{ basebackup_log }}" &&
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5433
      -U postgres -D "{{ backup_path }}"/metastoredb/basebackup/
      --tablespace-mapping=/data/pgdata/metastoredb="{{ backup_path }}"/metastoredb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/metastoredb/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
+     --waldir="{{ backup_path }}"/metastoredb/basebackup-pg_wal -P -v >> "{{ basebackup_log }}" 2>&1
 
 
 - name: Take Initial PG_BASEBACKUP of StateDB
   become: yes
   shell: >
-     printf "`date`" >> {{ basebackup-log }} &&
-     printf "\n########## STARTING PG_BASEBACKUP of StateDB ##########\n\n" >> {{ basebackup-log }}
+     printf "`date`" >> "{{ basebackup_log }}" &&
+     printf "\n########## STARTING PG_BASEBACKUP of StateDB ##########\n\n" >> "{{ basebackup_log }}" &&
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5434 
      -U postgres -D "{{ backup_path }}"/statedb/basebackup/
      --tablespace-mapping=/data/pgdata/statedb="{{ backup_path }}"/statedb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/statedb/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
-     printf "\n\n ************ END ********** \n\n" >> {{ basebackup-log }} 2>&1
+     --waldir="{{ backup_path }}"/statedb/basebackup-pg_wal -P -v >> "{{ basebackup_log }}" 2>&1 &&
+     printf "\n\n ************ END ********** \n\n" >> "{{ basebackup_log }}" 2>&1
 
 
 - name: Sync Initial PG_BASEBACKUP & WAL archives to S3 
