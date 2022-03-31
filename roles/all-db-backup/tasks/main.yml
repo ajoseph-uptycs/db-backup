@@ -19,14 +19,12 @@
     group: "{{ uptycs_service_user }}"
     recurse: yes
   with_items:
-    - "{{ backup_path }}"
-    - /pg/configdb/backup/walfiles-archive
-    - /pg/metastoredb/backup/walfiles-archive
-    - /pg/statedb/backup/walfiles-archive
-    # - "{{ backup_path }}/configdb/walfiles_archive"
-    # - "{{ backup_path }}/metastoredb/walfiles_archive"
-    # - "{{ backup_path }}/statedb/walfiles_archive"
-
+    - "{{ backup_path }}/configdb"
+    - "{{ backup_path }}/metastoredb"
+    - "{{ backup_path }}/statedb"
+    - "/pg/configdb/backup/walfiles_archive"
+    - "/pg/metastoredb/backup/walfiles_archive"
+    - "/pg/statedb/backup/walfiles_archive"
 
 
 - name: Backup postgresql.conf 
@@ -55,9 +53,9 @@
   loop: "{{ symlinks | dict2items }}"
   vars:
     symlinks:
-      /pg/configdb/backup/walfiles-archive: "{{ backup_path }}/configdb/walfiles_archive"
-      /pg/metastoredb/backup/walfiles-archive: "{{ backup_path }}/metastoredb/walfiles_archive"
-      /pg/statedb/backup/walfiles-archive: "{{ backup_path }}/statedb/walfiles_archive"
+      /pg/configdb/backup/walfiles_archive: "{{ backup_path }}/configdb/walfiles_archive"
+      /pg/metastoredb/backup/walfiles_archive: "{{ backup_path }}/metastoredb/walfiles_archive"
+      /pg/statedb/backup/walfiles_archive: "{{ backup_path }}/statedb/walfiles_archive"
 
 
 - name: Add PG Backup settings to configdb/postgresql.conf

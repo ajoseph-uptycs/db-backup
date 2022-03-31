@@ -5,7 +5,7 @@
   become: yes
   hosts: all
   vars:
-    - backup_path: /warehouse/db-backup/
+    - backup_path: /warehouse/db-backup
     - configdb_wal_archive: /warehouse/db-backup/configdb/walfiles
     - metastoredb_wal_archive: /warehouse/db-backup/metastoredb/walfiles
     - statedb_wal_archive: /warehouse/db-backup/statedb/walfiles
@@ -14,16 +14,22 @@
     - replication_user_pw: pguptycs
     - uptycs_service_user: monkey
     - s3_db_backup_url: s3://apj-db-backup
-    - basebackup-log: /tmp/basebackup.log
+    - basebackup_log: /tmp/basebackup.log
 
   tasks:
-      - name: Take Initial PG_BASEBACKUP of ConfigDB
-        become: yes
-        shell: >
-           printf "`date`" >> "{{ basebackup-log }}" &&
-           printf "\n########## STARTING PG_BASEBACKUP of ConfigDB ##########\n\n" >> "{{ basebackup-log }}"
-           export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5432 
-           -U postgres -D "{{ backup_path }}"/configdb/basebackup/
-           --tablespace-mapping=/data/pgdata/configdb="{{ backup_path }}"/configdb/pg_tblspc-24576
-           --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v >> "{{ basebackup-log }}" 2>&1
-      
+    - name: Create Symlinks for walfiles-archive directories
+      become: yes
+      file:
+        src: "{{ item.key }}"
+        dest: "{{ item.value }}"
+        state: link
+        owner: "{{ uptycs_service_user }}"
+        group: "{{ uptycs_service_user }}"
+      loop: "{{ symlinks | dict2items }}"
+      vars:
+        symlinks:
+          /pg/configdb/backup/walfiles_archive: "{{ backup_path }}/configdb/walfiles_archive"
+          /pg/metastoredb/backup/walfiles_archive: "{{ backup_path }}/metastoredb/walfiles_archive"
+          /pg/statedb/backup/walfiles_archive: "{{ backup_path }}/statedb/walfiles_archive"
+
+
