@@ -36,7 +36,9 @@
     - statedb
 
 
-# Create Symlinks to place DOCKER:/pg/backup/walfiles_archive INSIDE common Backupdirectory (backup_path)
+# Create Symlinks to place DOCKER:/pg/backup/walfiles_archive = HOST://pg/<DB-NAME>/backup/walfiles-archive 
+# INSIDE common Backupdirectory on HOST (backup_path)
+
 - name:
   become: yes
   shell: >
