@@ -10,6 +10,9 @@
     - metastoredb
     - statedb
 
+# These Directories Used only at the time of BASEBACKUP. And are not required to be mounted to docker. 
+# It will be available inside docker as parent directory /pg/configdb/backup is already mounted.
+
 - name: Create BaseBackup & wal_files_archive directories
   become: yes
   file:
@@ -19,10 +22,27 @@
     group: "{{ uptycs_service_user }}"
     recurse: yes
   with_items:
-    - "{{ backup_path }}"
-    - "{{ backup_path }}/configdb/walfiles_archive"
-    - "{{ backup_path }}/metastoredb/walfiles_archive"
-    - "{{ backup_path }}/statedb/walfiles_archive"
+    - /pg/configdb/backup/basebackup
+    - /pg/metastoredb/backup/basebackup
+    - /pg/metastoredb/backup/basebackup
+
+
+# /pg/<DB-NAME>/backup/     is Mounted inside Each DB Container as /pg/backup 
+
+- name: Create WAL-files-archive directories
+  become: yes
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ uptycs_service_user }}"
+    group: "{{ uptycs_service_user }}"
+    recurse: yes
+  with_items:
+    - /pg/configdb/backup/walfiles-archive
+    - /pg/metastoredb/backup/walfiles-archive
+    - /pg/statedb/backup/walfiles-archive
+
+
 
 - name: Backup postgresql.conf 
   become: yes
@@ -36,14 +56,7 @@
     - statedb
 
 
-# Create Symlinks to place DOCKER:/pg/backup/walfiles_archive INSIDE common Backupdirectory (backup_path)
-- name:
-  become: yes
-  shell: >
-      ln -s /pg/configdb/backup/walfiles-archive  "{{ backup_path }}"/configdb/walfiles_archive
-      ln -s /pg/metastoredb/backup/walfiles-archive  "{{ backup_path }}"/metastoredb/walfiles_archive
-      ln -s /pg/statedb/backup/walfiles-archive  "{{ backup_path }}"/statedb/walfiles_archive
-
+# /pg/backup/walfiles-archive/ is available in all DB containers. But mounted from different locations in HOST
 
 - name: Add PG Backup settings to configdb/postgresql.conf
   become: yes
@@ -56,7 +69,7 @@
     - "#=== ENABLE WAL ARCHIVING ==="
     - archive_mode = on
     - wal_level = logical
-    - "archive_command = 'test ! -f /pg/backup/walfiles_archive/%f && cp %p /pg/backup/walfiles_archive/%f'"
+    - "archive_command = 'test ! -f /pg/backup/walfiles-archive/%f && cp %p /pg/backup/walfiles-archive/%f'"
 
 
 - name: Add PG Backup settings to metastoredb/postgresql.conf
@@ -70,7 +83,8 @@
     - "#=== ENABLE WAL ARCHIVING ==="
     - archive_mode = on
     - wal_level = logical
-    - "archive_command = 'test ! -f /pg/backup/walfiles_archive/%f && cp %p /pg/backup/walfiles_archive/%f'"
+    - "archive_command = 'test ! -f /pg/backup/walfiles-archive/%f && cp %p /pg/backup/walfiles-archive/%f'"
+
 
 - name: Add PG Backup settings to statedb/postgresql.conf
   become: yes
@@ -83,7 +97,8 @@
     - "#=== ENABLE WAL ARCHIVING ==="
     - archive_mode = on
     - wal_level = logical
-    - "archive_command = 'test ! -f /pg/backup/walfiles_archive/%f && cp %p /pg/backup/walfiles_archive/%f'"
+    - "archive_command = 'test ! -f /pg/backup/walfiles-archive/%f && cp %p /pg/backup/walfiles-archive/%f'"
+
 
 
 - name: Add replication user to configdb/pg_hba.conf
@@ -95,6 +110,7 @@
     state: present
   with_items:
     - 'host  replication {{ replication_user }}  127.0.0.1/32    md5'
+
 
 - name: Add replication user to metastoredb/pg_hba.conf
   become: yes
@@ -169,9 +185,9 @@
      printf "`date`" >> {{ basebackup-log }} &&
      printf "\n########## STARTING PG_BASEBACKUP of ConfigDB ##########\n\n" >> {{ basebackup-log }}
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5432 
-     -U postgres -D "{{ backup_path }}"/configdb/basebackup/
-     --tablespace-mapping=/data/pgdata/configdb="{{ backup_path }}"/configdb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
+     -U postgres -D /pg/backup/configdb/basebackup
+     --tablespace-mapping=/pg/backup/configdb/basebackup/pg_tblspc-24576
+     --waldir=/pg/backup/configdb/basebackup/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
 
 
 - name: Take Initial PG_BASEBACKUP of MetastoreDB
@@ -180,9 +196,9 @@
      printf "`date`" >> {{ basebackup-log }} &&
      printf "\n########## STARTING PG_BASEBACKUP of MetastoreDB ##########\n\n" >> {{ basebackup-log }}
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5433
-     -U postgres -D "{{ backup_path }}"/metastoredb/basebackup/
-     --tablespace-mapping=/data/pgdata/metastoredb="{{ backup_path }}"/metastoredb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/metastoredb/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
+     -U postgres -D /pg/backup/metastoredb/basebackup
+     --tablespace-mapping=/pg/backup/metastoredb/basebackup/pg_tblspc-24576
+     --waldir=/pg/backup/metastoredb/basebackup/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
 
 
 - name: Take Initial PG_BASEBACKUP of StateDB
@@ -191,13 +207,12 @@
      printf "`date`" >> {{ basebackup-log }} &&
      printf "\n########## STARTING PG_BASEBACKUP of StateDB ##########\n\n" >> {{ basebackup-log }}
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5434 
-     -U postgres -D "{{ backup_path }}"/statedb/basebackup/
-     --tablespace-mapping=/data/pgdata/statedb="{{ backup_path }}"/statedb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/statedb/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
-     printf "\n\n ************ END ********** \n\n" >> {{ basebackup-log }} 2>&1
+     -U postgres -D /pg/backup/statedb/basebackup
+     --tablespace-mapping=/pg/backup/statedb/basebackup/pg_tblspc-24576
+     --waldir=/pg/backup/statedb/basebackup/basebackup-pg_wal -P -v >> {{ basebackup-log }} 2>&1
 
 
-- name: Sync Initial PG_BASEBACKUP & WAL archives to S3 
+- name: Sync PG_BASEBACKUP & WAL archives to S3 
   become: yes
   shell: aws s3 sync "{{ backup_path }}" "{{ s3_db_backup_url }}"
 
