@@ -1,0 +1,16 @@
+---
+backup_path: /warehouse/db-backup
+conf_path: /opt/uptycs/etc/postgres
+replication_user: postgres
+replication_user_pw: pguptycs
+uptycs_service_user: monkey
+s3_db_backup_url: s3://apj-db-backup/db-backup
+basebackup_log: /tmp/basebackup.log
+restore_command: 'cp /pg/backup/%f %p'
+recovery_target_time: 'latest'
+
+
+
+
+recovery_target: 
+

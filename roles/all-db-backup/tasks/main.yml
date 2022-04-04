@@ -184,7 +184,7 @@
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5432 
      -U postgres -D "{{ backup_path }}"/configdb/basebackup/
      --tablespace-mapping=/data/pgdata/configdb="{{ backup_path }}"/configdb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v >> "{{ basebackup_log }}" 2>&1 
+     --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v --wal-method=stream >> "{{ basebackup_log }}" 2>&1 
 
 
 - name: Take Initial PG_BASEBACKUP of MetastoreDB
@@ -195,8 +195,8 @@
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5433
      -U postgres -D "{{ backup_path }}"/metastoredb/basebackup/
      --tablespace-mapping=/data/pgdata/metastoredb="{{ backup_path }}"/metastoredb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/metastoredb/basebackup-pg_wal -P -v >> "{{ basebackup_log }}" 2>&1
-
+     --waldir="{{ backup_path }}"/metastoredb/basebackup-pg_wal -P -v --wal-method=stream  >> "{{ basebackup_log }}" 2>&1
+  
 
 - name: Take Initial PG_BASEBACKUP of StateDB
   become: yes
@@ -206,7 +206,7 @@
      export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5434 
      -U postgres -D "{{ backup_path }}"/statedb/basebackup/
      --tablespace-mapping=/data/pgdata/statedb="{{ backup_path }}"/statedb/pg_tblspc-24576
-     --waldir="{{ backup_path }}"/statedb/basebackup-pg_wal -P -v >> "{{ basebackup_log }}" 2>&1 &&
+     --waldir="{{ backup_path }}"/statedb/basebackup-pg_wal -P -v --wal-method=stream >> "{{ basebackup_log }}" 2>&1 &&
      printf "\n\n ************ END ********** \n\n" >> "{{ basebackup_log }}" 2>&1
 
 
@@ -224,12 +224,12 @@
     job: aws s3 sync "{{ backup_path }}" "{{ s3_db_backup_url }}"
     cron_file: db-back-s3sync
 
-- name: Add crontab for periodic BaseBackup
+- name: Add crontab for periodic BaseBackup & New WAL files 
   become: yes
   cron:
     name: "Create New BaseBackup"
     minute: "0"
     hour: "12"
     user: ubuntu
-    job: echo "test periodic task" > /tmp/test-periodic-task.txt
-    cron_file: db-back-s3sync
+    job: ansible -i apj.ini db-backup-rotate.yml
+    cron_file: db-backup-rotate

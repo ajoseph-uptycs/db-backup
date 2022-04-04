@@ -11,6 +11,20 @@ COMMON archive_command (common location)
 	-     - "archive_command = 'test ! -f /pg/backup/walfiles_archive/%f && cp %p /pg/backup/walfiles_archive/%f'"
 ```
 
+26.2.9. Continuous Archiving in Standby
+  - https://www.postgresql.org/docs/13/warm-standby.html#STREAMING-REPLICATION
+```
+archive_mode = always
+```
+max_wal_senders
+full_page_writes  on primary
+
+
+
+===
+
+archive_timeout = 60          # postgres will create a WAL file after this seconds is reached.
+
 
 ```
 Docker volumes:
@@ -62,3 +76,6 @@ datevar=$(date +'%Y-%m-%d-%H-%M')
 aws s3 --recursive mv {{ s3_db_backup_url }}/* {{ s3_db_backup_url }}/db-backup-$datevar
 
 ```
+aws s3 --recursive mv s3://anto-db-backup-dest/db-backup s3://anto-db-backup-dest/db-backup-$datevar
+
+move failed: s3://anto-db-backup-dest/db-backup/configdb/basebackup/base/1/2606_fsm to s3://anto-db-backup-dest/db-backup-2022-04-04-05-41/configdb/basebackup/base/1/2606_fsm An error occurred (AccessDenied) when calling the DeleteObject operation: Access Denied

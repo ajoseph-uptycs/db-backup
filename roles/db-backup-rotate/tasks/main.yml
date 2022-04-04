@@ -1,0 +1,117 @@
+---
+
+- name: DB_BACKUP_ROTATE
+  gather_facts: false
+  become: yes
+  hosts: all
+  vars:
+    - backup_path: /warehouse/db-backup
+    - configdb_wal_archive: /warehouse/db-backup/configdb/walfiles
+    - metastoredb_wal_archive: /warehouse/db-backup/metastoredb/walfiles
+    - statedb_wal_archive: /warehouse/db-backup/statedb/walfiles
+    - conf_path: /opt/uptycs/etc/postgres
+    - replication_user: postgres
+    - replication_user_pw: pguptycs
+    - uptycs_service_user: monkey
+    - s3_db_backup_url: s3://apj-db-backup
+    - basebackup_log: /tmp/basebackup.log
+
+  tasks:
+
+- name: Archive Current db-backup directory & Sync latest content
+  become: yes
+  shell: >
+         export timenow=$(date +'%Y-%m-%d-%H-%M') &&
+         mv "{{ backup_path }}" "{{ backup_path }}"-$timenow &&
+         aws s3 sync "{{ backup_path }}"-$timenow "{{ s3_db_backup_url }}"
+  
+
+- name: Create BaseBackup & wal_files_archive directories
+  become: yes
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ uptycs_service_user }}"
+    group: "{{ uptycs_service_user }}"
+    recurse: yes
+  with_items:
+    - "{{ backup_path }}/configdb"
+    - "{{ backup_path }}/metastoredb"
+    - "{{ backup_path }}/statedb"
+    - "/pg/configdb/backup/walfiles_archive"
+    - "/pg/metastoredb/backup/walfiles_archive"
+    - "/pg/statedb/backup/walfiles_archive"
+
+
+
+# Create Symlinks to place DOCKER:/pg/backup/walfiles_archive = HOST://pg/<DB-NAME>/backup/walfiles-archive 
+# INSIDE common Backupdirectory on HOST (backup_path)
+
+- name: Create Symlinks for walfiles-archive directories
+  become: yes
+  file:
+    src: "{{ item.key }}"
+    dest: "{{ item.value }}"
+    state: link
+    owner: "{{ uptycs_service_user }}"
+    group: "{{ uptycs_service_user }}"
+  loop: "{{ symlinks | dict2items }}"
+  vars:
+    symlinks:
+      /pg/configdb/backup/walfiles_archive: "{{ backup_path }}/configdb/walfiles_archive"
+      /pg/metastoredb/backup/walfiles_archive: "{{ backup_path }}/metastoredb/walfiles_archive"
+      /pg/statedb/backup/walfiles_archive: "{{ backup_path }}/statedb/walfiles_archive"
+
+
+# - name: Add archive_command = '' to postgresql.conf
+# - name: Reload PSQL 
+
+#  NEED TO UNCOMMENT AFTER PNODE1 Have permissions to Delete Objects in S3 bucket.
+
+# - name: Move S3://Bucket/db-backup to S3://Bucket/db-backup-DATE
+#   become: yes
+#   shell: >
+#         export timenow=$(date +'%Y-%m-%d-%H-%M') && 
+#         aws s3 --recursive mv {{ s3_db_backup_url }}/db-backup {{ s3_db_backup_url }}/db-backup-$timenow
+
+
+- name: Take PG_BASEBACKUP of ConfigDB
+  become: yes
+  shell: >
+     printf "`date`" >> "{{ basebackup_log }}" &&
+     printf "\n########## STARTING PG_BASEBACKUP of ConfigDB ##########\n\n" >> "{{ basebackup_log }}" &&
+     export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5432 
+     -U postgres -D "{{ backup_path }}"/configdb/basebackup/
+     --tablespace-mapping=/data/pgdata/configdb="{{ backup_path }}"/configdb/pg_tblspc-24576
+     --waldir="{{ backup_path }}"/configdb/basebackup-pg_wal -P -v --wal-method=stream >> "{{ basebackup_log }}" 2>&1 
+
+
+- name: Take PG_BASEBACKUP of MetastoreDB
+  become: yes
+  shell: >
+     printf "`date`" >> "{{ basebackup_log }}" &&
+     printf "\n########## STARTING PG_BASEBACKUP of MetastoreDB ##########\n\n" >> "{{ basebackup_log }}" &&
+     export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5433
+     -U postgres -D "{{ backup_path }}"/metastoredb/basebackup/
+     --tablespace-mapping=/data/pgdata/metastoredb="{{ backup_path }}"/metastoredb/pg_tblspc-24576
+     --waldir="{{ backup_path }}"/metastoredb/basebackup-pg_wal -P -v --wal-method=stream  >> "{{ basebackup_log }}" 2>&1
+  
+
+- name: Take PG_BASEBACKUP of StateDB
+  become: yes
+  shell: >
+     printf "`date`" >> "{{ basebackup_log }}" &&
+     printf "\n########## STARTING PG_BASEBACKUP of StateDB ##########\n\n" >> "{{ basebackup_log }}" &&
+     export PGPASSWORD="{{ replication_user_pw }}" && pg_basebackup -h localhost -p 5434 
+     -U postgres -D "{{ backup_path }}"/statedb/basebackup/
+     --tablespace-mapping=/data/pgdata/statedb="{{ backup_path }}"/statedb/pg_tblspc-24576
+     --waldir="{{ backup_path }}"/statedb/basebackup-pg_wal -P -v --wal-method=stream >> "{{ basebackup_log }}" 2>&1 &&
+     printf "\n\n ************ END ********** \n\n" >> "{{ basebackup_log }}" 2>&1
+
+
+- name: Sync PG_BASEBACKUP & WAL archives to S3 
+  become: yes
+  shell: aws s3 sync "{{ backup_path }}" "{{ s3_db_backup_url }}"
+
+
+
