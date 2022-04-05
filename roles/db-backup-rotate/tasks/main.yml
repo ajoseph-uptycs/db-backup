@@ -114,4 +114,4 @@
   shell: aws s3 sync "{{ backup_path }}" "{{ s3_db_backup_url }}"
 
 
-
+# - name: Delete if there are more than 2 db-backup-<date> directories in /warehouse

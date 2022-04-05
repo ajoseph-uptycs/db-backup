@@ -17,6 +17,7 @@ add_recovery_configuration_to_configdb() {
 
 printf "Adding recovery Configuration to configdb/postgresql.conf"
 cat <<EOT >> /opt/uptycs/etc/postgres/configdb/postgresql.conf
+----------------------- RECOVERY CONFIGS -----------------------
 restore_command = 'cp /warehouse/db-restore/configdb/%f "%p"'
 recovery_target_timeline = 'latest'
 recovery_target_action = promote
@@ -27,6 +28,7 @@ EOT
 
 
 copy_s3_contents_to_configdb() {
+
 	if [ -z "$S3_BACKUP_PATH" ]
 	then
 		printf "S3_BACKUP_PATH is not set \n"
@@ -54,6 +56,8 @@ add_recovery_configuration_to_metastoredb() {
 
 printf "Adding recovery Configuration to metastoredb/postgresql.conf"
 cat <<EOT >> /opt/uptycs/etc/postgres/metastoredb/postgresql.conf
+----------------------- RECOVERY CONFIGS -----------------------
+
 restore_command = 'cp /warehouse/db-restore/metastoredb/%f "%p"'
 recovery_target_timeline = 'latest'
 recovery_target_action = promote
@@ -64,6 +68,7 @@ EOT
 
 
 copy_s3_contents_to_metastoredb() {
+
 	if [ -z "$S3_BACKUP_PATH" ]
 	then
 		printf "S3_BACKUP_PATH is not set \n"
@@ -91,6 +96,8 @@ add_recovery_configuration_to_statedb() {
 
 printf "Adding recovery Configuration to statedb/postgresql.conf"
 cat <<EOT >> /opt/uptycs/etc/postgres/statedb/postgresql.conf
+----------------------- RECOVERY CONFIGS -----------------------
+
 restore_command = 'cp /warehouse/db-restore/statedb/%f "%p"'
 recovery_target_timeline = 'latest'
 recovery_target_action = promote
@@ -101,6 +108,7 @@ EOT
 
 
 copy_s3_contents_to_statedb() {
+
 	if [ -z "$S3_BACKUP_PATH" ]
 	then
 		printf "S3_BACKUP_PATH is not set \n"
@@ -140,3 +148,13 @@ start_statedb() {
 	docker-compose -f /opt/uptycs/etc/postgres/statedb/docker-compose.yml up -d
 
 }
+
+stop_psql_containers
+
+add_recovery_configuration_to_configdb
+add_recovery_configuration_to_metastoredb
+add_recovery_configuration_to_statedb
+
+copy_s3_contents_to_configdb
+copy_s3_contents_to_metastoredb
+copy_s3_contents_to_statedb
