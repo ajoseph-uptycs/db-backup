@@ -158,3 +158,7 @@ add_recovery_configuration_to_statedb
 copy_s3_contents_to_configdb
 copy_s3_contents_to_metastoredb
 copy_s3_contents_to_statedb
+
+start_configdb
+start_metastoredb
+start_statedb
