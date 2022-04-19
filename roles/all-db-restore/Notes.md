@@ -75,8 +75,10 @@ postgres=# SELECT * FROM pg_walfile_name_offset(pg_stop_backup());
 ```
 
 
-- pg_is_in_recovery ()		# Check status of recovery True -> still in progress
+- select pg_is_in_recovery ();		# Check status of recovery True -> still in progress
 
+https://postgresqlco.nf/doc/en/param/promote_trigger_file/13/
+- select pg_promote();
 
 
 STANDBY
